@@ -64,6 +64,9 @@ class ClipboardManager:
             "Bez zvuku": ""
         }
         
+        # Kompatibilita (RDP)
+        self.compatibility_mode = False
+        
         import typing
         self.root: typing.Any = None
         self.rebuild_items_callback: typing.Any = None
@@ -241,6 +244,34 @@ class ClipboardManager:
         )
         clear_btn.pack(side="right", padx=5)
 
+        # Sekcia Kompatibilita (RDP)
+        comp_group = ctk.CTkFrame(toolbar_frame, fg_color="transparent")
+        comp_group.pack(side="right", padx=15, pady=10)
+
+        def toggle_comp():
+            self.compatibility_mode = not self.compatibility_mode
+            if self.compatibility_mode:
+                comp_check.configure(text="⚡ Komp. mód zapnutý", text_color="#d69e2e")
+            else:
+                comp_check.configure(text="⚡ RDP Kompatibilita", text_color="#718096")
+
+        comp_check = ctk.CTkCheckBox(
+            comp_group,
+            text="⚡ RDP Kompatibilita",
+            font=("Segoe UI", 11, "bold"),
+            text_color="#718096",
+            border_color="#cbd5e0",
+            hover_color="#edf2f7",
+            checkmark_color="#3182ce",
+            width=20,
+            height=20,
+            command=toggle_comp
+        )
+        if self.compatibility_mode:
+            comp_check.select()
+            comp_check.configure(text="⚡ Komp. mód zapnutý", text_color="#d69e2e")
+        comp_check.pack(side="right")
+
         root.bind("<Escape>", lambda e: root.destroy())
         root.update_idletasks() # Prvotný layout výpočet
 
@@ -291,7 +322,10 @@ class ClipboardManager:
                 self.popup_open = False
                 self.root = None
                 self.rebuild_items_callback = None
-                time.sleep(0.1)
+                
+                # Dynamic delay based on compatibility mode
+                delay = 0.4 if self.compatibility_mode else 0.1
+                time.sleep(delay)
                 keyboard.send("ctrl+v")
             else:
                 rebuild_items()

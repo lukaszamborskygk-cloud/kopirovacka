@@ -37,6 +37,17 @@ Ak už máte staršiu verziu a chcete prejsť na túto novú, postupujte presne 
     *   Spustite aplikáciu a stlačte **`Ctrl + ;`**.
     *   V Dashboarde uvidíte text "Verzia 2.0" (alebo aktuálne číslo), čo potvrdzuje úspešnú aktualizáciu.
 
+## 🌐 Vzdialená plocha (RDP) a problémy
+Ak používate aplikáciu pri práci cez vzdialenú plochu a vkladanie nefunguje správne (neprilepí sa nič alebo starý text), vyskúšajte tieto kroky:
+
+1.  **⚡ RDP Kompatibilita**:
+    *   V Dashboarde (`Ctrl + ;`) zaškrtnite políčko **⚡ RDP Kompatibilita**.
+    *   Toto nastavenie pridá krátke čakanie pred samotným vložením textu, čo dá Windowsu čas na synchronizáciu schránky medzi vaším PC a serverom.
+2.  **Nastavenia RDP klienta**:
+    *   Pred pripojením skontrolujte v RDP klientovi: `Možnosti -> Lokálne zdroje -> Schránka` (musí byť zaškrtnuté).
+3.  **Manuálne riešenie**:
+    *   Ak automatické vkladanie zlyháva, kliknite na položku v Dashboarde (čím sa skopíruje do schránky) a potom ju manuálne prilepte pomocou **`Ctrl + V`** priamo v cieľovom okne.
+
 ## 🛠️ Požiadavky
 - **Python 3.10+** (uistite sa, že pri inštalácii Pythonu ste zaškrtli "Add Python to PATH").
 
