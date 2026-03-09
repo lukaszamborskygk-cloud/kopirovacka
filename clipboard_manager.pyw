@@ -15,6 +15,7 @@ import typing
 import time
 import threading
 import os
+import sys
 import urllib.request
 import tkinter as tk
 from tkinter import messagebox
@@ -23,6 +24,15 @@ import pyperclip
 import keyboard
 import pystray
 from PIL import Image, ImageDraw, ImageFont
+
+
+def resource_path(relative_path):
+    """ Získa absolútnu cestu k resourcom, funguje pre dev aj PyInstaller. """
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
 
 def hide_console():
@@ -513,7 +523,7 @@ class ClipboardManager:
             
         try:
             import winsound
-            sound_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), self.selected_sound)
+            sound_path = resource_path(self.selected_sound)
             
             # Ak zvuk ešte nemáme, stiahneme ho
             if not os.path.exists(sound_path):
@@ -595,9 +605,13 @@ class ClipboardManager:
 
         # Písmeno "K" v strede
         try:
-            fnt = ImageFont.truetype("segoeui.ttf", 36)
+            fnt = ImageFont.truetype(resource_path("segoeui.ttf"), 36)
         except Exception:
-            fnt = ImageFont.load_default()
+            try:
+                # Fallback pre Windows font, ak by v bundle nebol (hoci segoeui by mal byť v systéme)
+                fnt = ImageFont.truetype("segoeui.ttf", 36)
+            except Exception:
+                fnt = ImageFont.load_default()
 
         draw.text(
             (size // 2, size // 2),
