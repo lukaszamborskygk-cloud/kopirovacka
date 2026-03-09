@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('kopirovacka_pro.ico', '.')]
+datas = [('kopirovacka_pro.ico', '.'), ('dist/Uninstall.exe', '.')]
 binaries = []
 hiddenimports = []
 tmp_ret = collect_all('customtkinter')

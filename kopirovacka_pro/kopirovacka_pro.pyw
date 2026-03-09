@@ -24,6 +24,7 @@ MAX_HISTORY = 50
 MAX_PREVIEW = 350
 APPDATA_FOLDER = os.path.join(os.environ["APPDATA"], "KopirovackaPro")
 TARGET_EXE = os.path.join(APPDATA_FOLDER, "KopirovackaPro.exe")
+TARGET_UNINSTALL = os.path.join(APPDATA_FOLDER, "Uninstall.exe")
 MUTEX_NAME = "KopirovackaPro_Global_Mutex_2026"
 
 # Lazy Loading handles
@@ -108,12 +109,23 @@ class ProInstaller:
             self._update(0.3, "Príprava systémových priečinkov... 30%")
             time.sleep(0.3)
             
-            # 2. Copying
+            # 2. Copying App
             shutil.copy2(sys.executable, TARGET_EXE)
-            self._update(0.6, "Inštalácia binárnych súborov... 60%")
+            self._update(0.5, "Inštalácia binárnych súborov... 50%")
             time.sleep(0.3)
 
-            # 3. Shortcut
+            # 3. Handle Uninstaller
+            # Skúsime nájsť Uninstall.exe (ak ho PyInstaller pribalil)
+            uninst_src = resource_path("Uninstall.exe")
+            if os.path.exists(uninst_src):
+                shutil.copy2(uninst_src, TARGET_UNINSTALL)
+                self._update(0.7, "Príprava odinštalátora... 70%")
+            else:
+                # Ak sme v dev móde alebo chýba, len preskočíme
+                self._update(0.7, "Konfigurácia... 70%")
+            time.sleep(0.3)
+
+            # 4. Shortcut
             if self.shortcut_var.get():
                 desktop = os.path.join(os.environ["USERPROFILE"], "Desktop")
                 path = os.path.join(desktop, f"{APP_NAME}.lnk")
