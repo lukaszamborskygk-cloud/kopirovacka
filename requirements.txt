@@ -1,8 +1,0 @@
-pyperclip
-pystray
-Pillow
-keyboard
-customtkinter
-
-
-

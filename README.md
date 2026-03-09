@@ -1,53 +1,36 @@
-# 📋 Kopirovačka – Multi-Clipboard Manager (2026 Edition)
+# 📋 Kopírovačka – Multi-Clipboard Manager (2026 Edition)
 
 Moderný manažér schránky, ktorý si pamätá všetko, čo skopírujete. Beží ticho na pozadí a vyvoláte ho jednoduchou skratkou. Teraz v podobe jednoduchej aplikácie pre Windows.
 
 ## ✨ Kľúčové funkcie
 - **História schránky**: Pamätá si posledných 50 položiek.
-- **Rýchla aktivácia**: Skratka **`Ctrl + ;`** (alebo pôvodná hotkey) okamžite otvorí Dashboard.
+- **Rýchla aktivácia**: Skratka **`Ctrl + ;`** okamžite otvorí Dashboard.
 - **Jednoduchá inštalácia**: Aplikácia sa sama nainštaluje a vytvorí ikonku na ploche.
 - **Zvuková spätná väzba**: Vyberte si medzi štekotom psa alebo mňaukaním mačky pri výbere textu.
 - **Pripnutie (Pin)**: Dashboard môže zostať stále na vrchu, kým ho sami nezavriete.
-## 🚀 Inštalácia (Prvé spustenie)
-1. Stiahnite si tento projekt ako [ZIP archív](https://github.com/vashr/kopirovacka/archive/refs/heads/main.zip) a rozbaľte ho.
-2. Otvorte priečinok a spustite súbor **`vytvor_skratku.bat`**.
-   - Tento skript automaticky nainštaluje potrebné knižnice a vytvorí skratku na ploche.
-3. Teraz môžete aplikáciu spúšťať priamo cez skratku **Kopirovacka** na ploche.
+- **Tichý chod**: Po spustení nezaberá miesto na lište úloh (beží v tray ikonke pri hodinách).
 
-## 🔄 Ako aktualizovať na novú verziu
-Ak už máte staršiu verziu a chcete prejsť na túto novú, postupujte presne podľa týchto krokov:
+## 🚀 Inštalácia (Najjednoduchší spôsob)
+Už nie je potrebné inštalovať Python ani nič iné. Stačí vám len jeden súbor:
 
-1.  **Úplné vypnutie starej verzie**:
-    *   Hľadajte modrú ikonku s písmenom **"K"** (alebo ikonku psa/mačky v starších verziách) v systémovej lište (vpravo dole pri hodinách, možno bude skrytá pod šípkou).
-    *   Kliknite na ňu **pravým tlačidlom** a zvoľte **❌ Ukončiť**.
-    *   *Dôležité: Ak starú verziu nevypnete, súbory sa nebudú dať prepísať.*
-2.  **Stiahnutie a rozbalenie**:
-    *   Stiahnite si novú verziu ako [ZIP archív](https://github.com/vashr/kopirovacka/archive/refs/heads/main.zip).
-    *   Rozbalte ZIP súbor.
-3.  **Nahradenie súborov**:
-    *   Otvorte priečinok, kde máte nainštalovanú starú verziu.
-    *   Všetky nové súbory z rozbaleného ZIPu skopírujte do tohto priečinka.
-    *   Keď sa Windows opýta, zvoľte **"Nahradiť súbory v cieľovom umiestnení"**.
-4.  **Aktualizácia prostredia**:
-    *   Spustite súbor **`vytvor_skratku.bat`**.
-    *   Tento krok je nevyhnutný, pretože nová verzia môže vyžadovať nové knižnice alebo môže mať upravenú cestu k súborom.
-5.  **Overenie**:
-    *   Spustite aplikáciu a stlačte **`Ctrl + ;`**.
-    *   V Dashboarde uvidíte text "Verzia 2.0" (alebo aktuálne číslo), čo potvrdzuje úspešnú aktualizáciu.
+1. Stiahnite si súbor **`Instalacka.exe`** (priečinok `dist`).
+2. Spustite ho. 
+3. Aplikácia sa opýta: *"Chcete nainštalovať Kopírovačku do počítača a vytvoriť ikonku na ploche?"*
+4. Potvrďte **Áno**.
+   - Aplikácia sa automaticky skopíruje do vášho počítača (priečinok AppData).
+   - Na ploche sa vytvorí ikonka **Kopírovačka**.
+5. Hotovo! Aplikácia sa hneď spustí a môžete ju začať používať.
 
-## 🌐 Vzdialená plocha (RDP) a problémy
-Ak používate aplikáciu pri práci cez vzdialenú plochu a vkladanie nefunguje správne (neprilepí sa nič alebo starý text), vyskúšajte tieto kroky:
+## 🔄 Ako používať
+- **Kopírovanie**: Používajte `Ctrl + C` ako obvykle. Kopírovačka všetko zachytí.
+- **Rozšírené vkladanie**: Stlačte **`Ctrl + ;`**. Otvorí sa Dashboard so všetkými skopírovanými textami. Kliknite na text, ktorý chcete vložiť, a program ho automaticky prilepí tam, kde máte kurzor.
+- **System Tray (Lišta pri hodinách)**: Vpravo dole nájdete modrú ikonku s písmenom **"K"**. Pravým klikom môžete:
+  - **Vymazať zoznam** (históriu).
+  - **Zobraziť zoznam** (ak zabudnete skratku).
+  - **Ukončiť** aplikáciu.
 
-1.  **⚡ RDP Kompatibilita**:
-    *   V Dashboarde (`Ctrl + ;`) zaškrtnite políčko **⚡ RDP Kompatibilita**.
-    *   Toto nastavenie pridá krátke čakanie pred samotným vložením textu, čo dá Windowsu čas na synchronizáciu schránky medzi vaším PC a serverom.
-2.  **Nastavenia RDP klienta**:
-    *   Pred pripojením skontrolujte v RDP klientovi: `Možnosti -> Lokálne zdroje -> Schránka` (musí byť zaškrtnuté).
-3.  **Manuálne riešenie**:
-    *   Ak automatické vkladanie zlyháva, kliknite na položku v Dashboarde (čím sa skopíruje do schránky) a potom ju manuálne prilepte pomocou **`Ctrl + V`** priamo v cieľovom okne.
-
-## 🛠️ Požiadavky
-- **Python 3.10+** (uistite sa, že pri inštalácii Pythonu ste zaškrtli "Add Python to PATH").
+## 🌐 Vzdialená plocha (RDP)
+Ak pracujete cez vzdialenú plochu a vkladanie nefunguje správne, v Dashboarde (`Ctrl + ;`) zaškrtnite políčko **⚡ RDP Kompatibilita**. Program pridá drobné oneskorenie, aby sa schránka stihla synchronizovať.
 
 ---
-*Vyrobené s ❤️ pre efektívnejšiu prácu.*
+*Vyrobené s ❤️ pre efektívnejšiu prácu v roku 2026.*
