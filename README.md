@@ -1,15 +1,13 @@
 # 📋 Kopirovačka – Multi-Clipboard Manager (2026 Edition)
 
-Moderný manažér schránky, ktorý si pamätá všetko, čo skopírujete. Beží ticho na pozadí a vyvoláte ho jednoduchou skratkou.
+Moderný manažér schránky, ktorý si pamätá všetko, čo skopírujete. Beží ticho na pozadí a vyvoláte ho jednoduchou skratkou. Teraz v podobe jednoduchej aplikácie pre Windows.
 
 ## ✨ Kľúčové funkcie
 - **História schránky**: Pamätá si posledných 50 položiek.
-- **Viacriadkový text**: Plná podpora pre kód, zoznamy a dlhé texty (zarovnané naľavo).
-- **Rýchla aktivácia**: Skratka **`Ctrl + ;`** okamžite otvorí Dashboard.
+- **Rýchla aktivácia**: Skratka **`Ctrl + ;`** (alebo pôvodná hotkey) okamžite otvorí Dashboard.
+- **Jednoduchá inštalácia**: Aplikácia sa sama nainštaluje a vytvorí ikonku na ploche.
 - **Zvuková spätná väzba**: Vyberte si medzi štekotom psa alebo mňaukaním mačky pri výbere textu.
 - **Pripnutie (Pin)**: Dashboard môže zostať stále na vrchu, kým ho sami nezavriete.
-- **Tichý chod**: Po spustení nezaberá miesto na lište úloh (beží v tray ikonke).
-
 ## 🚀 Inštalácia (Prvé spustenie)
 1. Stiahnite si tento projekt ako [ZIP archív](https://github.com/vashr/kopirovacka/archive/refs/heads/main.zip) a rozbaľte ho.
 2. Otvorte priečinok a spustite súbor **`vytvor_skratku.bat`**.

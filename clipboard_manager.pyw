@@ -23,6 +23,7 @@ import customtkinter as ctk
 import pyperclip
 import keyboard
 import pystray
+import shutil
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -33,6 +34,63 @@ def resource_path(relative_path):
     except Exception:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
+
+
+def handle_installation():
+    """ 
+    Zabezpečí, že sa aplikácia 'nainštaluje' do AppData a vytvorí skratku na ploche.
+    Vráti True, ak má aplikácia pokračovať v behu, False ak sa má ukončiť (reštart z novej lokality).
+    """
+    # Zisti odkiaľ bežíme
+    current_exe = sys.executable
+    appdata_dir = os.path.join(os.environ["APPDATA"], "Kopirovacka")
+    target_exe = os.path.join(appdata_dir, "Kopirovacka.exe")
+
+    # Ak nie sme v AppData a nie sme v debug móde (napr. spúšťanie cez python script)
+    if not current_exe.endswith(".exe"):
+        return True # Bežíme ako script, neriešime inštaláciu
+        
+    if os.path.abspath(current_exe).lower() == os.path.abspath(target_exe).lower():
+        return True # Už sme v cieľovej destinácii
+    
+    # Sme v 'Instalacka.exe' – spýtaj sa užívateľa
+    root = tk.Tk()
+    root.withdraw()
+    
+    answer = messagebox.askyesno(
+        "Inštalácia Kopírovačky",
+        "Chcete nainštalovať Kopírovačku do počítača a vytvoriť ikonku na ploche?"
+    )
+    
+    if answer:
+        try:
+            if not os.path.exists(appdata_dir):
+                os.makedirs(appdata_dir)
+            
+            # Skopíruj sám seba (ak cieľ existuje a je spustený, toto môže zlyhať, ale singleton to rieši)
+            shutil.copy2(current_exe, target_exe)
+            
+            # Vytvor skratku na ploche cez PowerShell (najjednoduchšie bez extra závislostí)
+            desktop = os.path.join(os.environ["USERPROFILE"], "Desktop")
+            shortcut_path = os.path.join(desktop, "Kopírovačka.lnk")
+            
+            ps_cmd = f'$s = (New-Object -ComObject WScript.Shell).CreateShortcut("{shortcut_path}"); $s.TargetPath = "{target_exe}"; $s.Save();'
+            subprocess_cmd = f'powershell -ExecutionPolicy Bypass -Command "{ps_cmd}"'
+            os.system(subprocess_cmd)
+            
+            messagebox.showinfo("Hotovo", "Kopírovačka bola nainštalovaná.\nTeraz sa spustí z nového umiestnenia.")
+            
+            # Spusti novú verziu a ukonči túto
+            os.startfile(target_exe)
+            root.destroy()
+            return False
+        except Exception as e:
+            messagebox.showerror("Chyba pri inštalácii", f"Nepodarilo sa nainštalovať aplikáciu: {e}")
+            root.destroy()
+            return True # Skús aspoň bežať odtiaľto
+    
+    root.destroy()
+    return True
 
 
 def hide_console():
@@ -690,12 +748,17 @@ if __name__ == "__main__":
         root.withdraw()
         messagebox.showwarning(
             "Kopírovačka už beží",
-            "Program už je spustený na pozadí.\nPozrite si ikonku v lište (pri hodinách) !!!!!!! nezapinaj ho zas  cmuk <3."
+            "Program už je spustený na pozadí.\nPozrite si ikonku v lište (pri hodinách) !!!!!!!"
         )
         root.destroy()
         os._exit(0)
 
     hide_console()
+
+    # Inštalačná logika
+    if not handle_installation():
+        os._exit(0)
+
     try:
         manager = ClipboardManager()
         manager.run()
