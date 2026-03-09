@@ -1,781 +1,358 @@
 """
-Kopirovačka – Multi-Clipboard Manager
-======================================
-Sleduje schránku, ukladá viac skopírovaných textov a pri vložení
-(cez Ctrl+Shift+V) ukáže zoznam na výber.
-
-Ovládanie:
-  Ctrl+C        – bežné kopírovanie, program automaticky zachytí text
-  Ctrl+Shift+V  – zobrazí popup na výber z histórie schránky
-  System tray   – pravý klik: Vymazať zoznam / Ukončiť
+Kopirovačka – Multi-Clipboard Manager (Premium v2.0)
+====================================================
+Vysoko výkonný manažér schránky s minimálnou stopou.
 """
 
 import ctypes
-import typing
 import time
 import threading
 import os
 import sys
 import urllib.request
+import shutil
+import subprocess
 import tkinter as tk
 from tkinter import messagebox
-import customtkinter as ctk
-import pyperclip
-import keyboard
-import pystray
-import shutil
 from PIL import Image, ImageDraw, ImageFont
 
+# ─── Globálne premenné a konfigurácia ──────────────────────────────────────────
+POLL_INTERVAL = 1.0          # sekundy – kontrola schránky
+AUTO_RESET_MINUTES = 20      # automatický reset
+HOTKEY = "ctrl+;"            # klávesová skratka
+MAX_HISTORY_ITEMS = 50       
+MAX_STRING_LENGTH = 50000    
+
+# Dynamické importy (Lazy loading pre rýchly štart)
+ctk = None
+pyperclip = None
+keyboard = None
+pystray = None
+
+def lazy_load_core():
+    """ Načíta základné knižnice potrebné pre beh na pozadí. """
+    global pyperclip, keyboard, pystray
+    if pyperclip is None:
+        import pyperclip as _pyperclip
+        pyperclip = _pyperclip
+    if keyboard is None:
+        import keyboard as _keyboard
+        keyboard = _keyboard
+    if pystray is None:
+        import pystray as _pystray
+        pystray = _pystray
+
+def lazy_load_ui():
+    """ Načíta ťažké UI knižnice len keď sú reálne potrebné. """
+    global ctk
+    if ctk is None:
+        import customtkinter as _ctk
+        ctk = _ctk
+        ctk.set_appearance_mode("light")
+        ctk.set_default_color_theme("blue")
 
 def resource_path(relative_path):
-    """ Získa absolútnu cestu k resourcom, funguje pre dev aj PyInstaller. """
+    """ Získa absolútnu cestu k resourcom. """
     try:
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-
-def handle_installation():
-    """ 
-    Zabezpečí, že sa aplikácia 'nainštaluje' do AppData a vytvorí skratku na ploche.
-    Vráti True, ak má aplikácia pokračovať v behu, False ak sa má ukončiť (reštart z novej lokality).
-    """
-    # Zisti odkiaľ bežíme
-    current_exe = sys.executable
-    appdata_dir = os.path.join(os.environ["APPDATA"], "Kopirovacka")
-    target_exe = os.path.join(appdata_dir, "Kopirovacka.exe")
-
-    # Ak nie sme v AppData a nie sme v debug móde (napr. spúšťanie cez python script)
-    if not current_exe.endswith(".exe"):
-        return True # Bežíme ako script, neriešime inštaláciu
-        
-    if os.path.abspath(current_exe).lower() == os.path.abspath(target_exe).lower():
-        return True # Už sme v cieľovej destinácii
-    
-    # Sme v 'Instalacka.exe' – spýtaj sa užívateľa
-    root = tk.Tk()
-    root.withdraw()
-    
-    answer = messagebox.askyesno(
-        "Inštalácia Kopírovačky",
-        "Chcete nainštalovať Kopírovačku do počítača a vytvoriť ikonku na ploche?"
-    )
-    
-    if answer:
-        try:
-            if not os.path.exists(appdata_dir):
-                os.makedirs(appdata_dir)
-            
-            # Skopíruj sám seba (ak cieľ existuje a je spustený, toto môže zlyhať, ale singleton to rieši)
-            shutil.copy2(current_exe, target_exe)
-            
-            # Vytvor skratku na ploche cez PowerShell (najjednoduchšie bez extra závislostí)
-            desktop = os.path.join(os.environ["USERPROFILE"], "Desktop")
-            shortcut_path = os.path.join(desktop, "Kopírovačka.lnk")
-            
-            ps_cmd = f'$s = (New-Object -ComObject WScript.Shell).CreateShortcut("{shortcut_path}"); $s.TargetPath = "{target_exe}"; $s.Save();'
-            subprocess_cmd = f'powershell -ExecutionPolicy Bypass -Command "{ps_cmd}"'
-            os.system(subprocess_cmd)
-            
-            messagebox.showinfo("Hotovo", "Kopírovačka bola nainštalovaná.\nTeraz sa spustí z nového umiestnenia.")
-            
-            # Spusti novú verziu a ukonči túto
-            os.startfile(target_exe)
-            root.destroy()
-            return False
-        except Exception as e:
-            messagebox.showerror("Chyba pri inštalácii", f"Nepodarilo sa nainštalovať aplikáciu: {e}")
-            root.destroy()
-            return True # Skús aspoň bežať odtiaľto
-    
-    root.destroy()
-    return True
-
-
-def hide_console():
-    """Skryje konzolové okno (Windows)."""
-    try:
-        hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-        if hwnd:
-            ctypes.windll.user32.ShowWindow(hwnd, 0)  # SW_HIDE
-    except Exception:
-        pass
-
-# ─── Konfigurácia ────────────────────────────────────────────────────────────
-POLL_INTERVAL = 0.8          # sekundy – ako často kontrolovať schránku
-AUTO_RESET_MINUTES = 20      # automatický reset zoznamu po N minútach
-MAX_PREVIEW_LENGTH = 80      # max dĺžka náhľadu textu v popup okne
-HOTKEY = "ctrl+;"            # klávesová skratka na otvorenie výberu
-MAX_HISTORY_ITEMS = 50       # maximálny počet položiek v histórii
-MAX_STRING_LENGTH = 50000    # maximálna dĺžka jedného textu (prevencia OOM)
-
-
-class ClipboardManager:
-    """Hlavná trieda clipboard manažéra."""
-
+# ─── Inštalátor ───────────────────────────────────────────────────────────────
+class KopirovackaInstaller:
+    """ Profesionálny inštalátor (beží v čistom Tkinteri pre rýchlosť). """
     def __init__(self):
-        self.clipboard_history: list[str] = []
-        self.last_clipboard: str = ""
-        self.running = True
-        self.popup_open = False
-        self.lock = threading.Lock()
-        self.last_reset_time = time.time()
+        lazy_load_ui() # Tu potrebujeme CustomTkinter pre pekný vzhľad
+        self.root = ctk.CTk()
+        self.root.title("Inštalácia Kopírovačky")
+        self.root.geometry("500x350")
+        self.root.resizable(False, False)
+        self.root.attributes("-topmost", True)
         
-        # Pripínanie a zvuky
+        # Centrovanie
+        screen_w = self.root.winfo_screenwidth()
+        screen_h = self.root.winfo_screenheight()
+        x = (screen_w - 500) // 2
+        y = (screen_h - 350) // 2
+        self.root.geometry(f"+{x}+{y}")
+
+        self.appdata_dir = os.path.join(os.environ["APPDATA"], "Kopirovacka")
+        self.target_exe = os.path.join(self.appdata_dir, "Kopirovacka.exe")
+        self.current_exe = sys.executable
+        
+        self.create_shortcut_var = tk.BooleanVar(value=True)
+        
+        # Ikona okna
+        ico_path = resource_path("app_icon.ico")
+        if os.path.exists(ico_path):
+            self.root.iconbitmap(ico_path)
+
+        self._build_welcome_screen()
+
+    def _build_welcome_screen(self):
+        self._clear_screen()
+        ctk.CTkLabel(self.root, text="Vitajte v inštalácii", font=("Segoe UI", 24, "bold")).pack(pady=(40, 10))
+        ctk.CTkLabel(self.root, text="Prémiová verzia Kopírovačky bude nainštalovaná do vášho PC.", font=("Segoe UI", 13)).pack(pady=10)
+        
+        shortcut_check = ctk.CTkCheckBox(self.root, text="Vytvoriť odkaz na ploche", variable=self.create_shortcut_var)
+        shortcut_check.pack(pady=20)
+
+        btn_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        btn_frame.pack(side="bottom", fill="x", padx=20, pady=20)
+        ctk.CTkButton(btn_frame, text="Zrušiť", width=100, fg_color="#edf2f7", text_color="#2d3748", command=self.root.destroy).pack(side="left")
+        ctk.CTkButton(btn_frame, text="Inštalovať", width=120, command=self._start_installation).pack(side="right")
+
+    def _start_installation(self):
+        self._clear_screen()
+        ctk.CTkLabel(self.root, text="Inštalujem...", font=("Segoe UI", 20, "bold")).pack(pady=(60, 20))
+        self.progress_bar = ctk.CTkProgressBar(self.root, width=400)
+        self.progress_bar.set(0)
+        self.progress_bar.pack(pady=10)
+        
+        threading.Thread(target=self._run_install_logic, daemon=True).start()
+
+    def _run_install_logic(self):
+        try:
+            time.sleep(0.5) # Krátky moment pre UI
+            if not os.path.exists(self.appdata_dir):
+                os.makedirs(self.appdata_dir)
+            
+            self.root.after(0, lambda: self.progress_bar.set(0.5))
+            shutil.copy2(self.current_exe, self.target_exe)
+
+            if self.create_shortcut_var.get():
+                desktop = os.path.join(os.environ["USERPROFILE"], "Desktop")
+                shortcut_path = os.path.join(desktop, "Kopírovačka.lnk")
+                ps_cmd = (
+                    f'$WshShell = New-Object -ComObject WScript.Shell; '
+                    f'$Shortcut = $WshShell.CreateShortcut(\'{shortcut_path}\'); '
+                    f'$Shortcut.TargetPath = \'{self.target_exe}\'; '
+                    f'$Shortcut.IconLocation = \'{self.target_exe},0\'; '
+                    f'$Shortcut.WorkingDirectory = \'{self.appdata_dir}\'; '
+                    f'$Shortcut.Save()'
+                )
+                subprocess.run(["powershell", "-Command", ps_cmd], capture_output=True, check=True)
+
+            self.root.after(0, lambda: self.progress_bar.set(1.0))
+            self.root.after(200, self._show_finish_screen)
+        except Exception as e:
+            self.root.after(0, lambda e=e: messagebox.showerror("Chyba", str(e)))
+            self.root.after(0, self.root.destroy)
+
+    def _show_finish_screen(self):
+        self._clear_screen()
+        ctk.CTkLabel(self.root, text="Dokončené! 🚀", font=("Segoe UI", 22, "bold"), text_color="#2f855a").pack(pady=(60, 20))
+        ctk.CTkButton(self.root, text="Spustiť a Dokončiť", width=150, command=self._finish).pack(pady=20)
+
+    def _finish(self):
+        os.startfile(self.target_exe)
+        self.root.destroy()
+        os._exit(0)
+
+    def _clear_screen(self):
+        for widget in self.root.winfo_children(): widget.destroy()
+
+# ─── Clipboard Manager ───────────────────────────────────────────────────────
+class ClipboardManager:
+    def __init__(self, root):
+        self.root = root
+        self.history = []
+        self.last_item = ""
+        self.lock = threading.Lock()
+        self.last_reset = time.time()
+        self.popup_open = False
         self.pinned = False
         self.selected_sound = "dog1.wav"
-        self.sounds = {
-            "Veľký štek (Dog 1)": "dog1.wav",
-            "Malý štek (Dog 2)": "dog2.wav",
-            "Mačka": "cat.wav",
-            "Bez zvuku": ""
-        }
-        
-        # Kompatibilita (RDP)
         self.compatibility_mode = False
         
-        import typing
-        self.root: typing.Any = None
-        self.rebuild_items_callback: typing.Any = None
+        lazy_load_core()
         
-        # Threading and UI signals
-        self.icon: typing.Any = None
-        self.show_popup_signal = False
-        self._last_rebuild_state: typing.Any = (None, 0, None) # (posledný, počet, active)
-        self._rebuild_scheduled = False
-        self._current_ui_mode: typing.Any = None # "desktop" alebo "mobile"
+        # Skús načítať úvodný stav
+        try: self.last_item = pyperclip.paste() or ""
+        except: pass
 
-        # Pokúsiť sa načítať aktuálny obsah schránky
-        try:
-            self.last_clipboard = pyperclip.paste() or ""
-        except Exception:
-            self.last_clipboard = ""
+        # Tray ikona
+        self.icon = self._create_tray_icon()
+        
+        # Spustiť monitoring
+        threading.Thread(target=self._monitor_loop, daemon=True).start()
+        
+        # Registrovať Hotkey
+        keyboard.add_hotkey(HOTKEY, lambda: self.root.after(0, self.show_popup), suppress=False)
 
-    # ─── Monitoring schránky ─────────────────────────────────────────────
-    def poll_clipboard(self):
-        """Pravidelne kontroluje schránku (beží v samostatnom vlákne)."""
-        last_history_len = 0
-        while self.running:
+        # Spustiť Tray v samostatnom vlákne
+        threading.Thread(target=self.icon.run, daemon=True).start()
+
+    def _monitor_loop(self):
+        while True:
             try:
-                current_text = pyperclip.paste()
-                if current_text and current_text != self.last_clipboard:
-                    # Hardening: Ochrana pred extrémne dlhým textom
-                    if len(current_text) > MAX_STRING_LENGTH:
-                        current_text = current_text[:MAX_STRING_LENGTH] + "... [SKRÁTENÉ]"
-
-                    self.last_clipboard = current_text
+                current = pyperclip.paste()
+                if current and current != self.last_item:
+                    if len(current) > MAX_STRING_LENGTH:
+                        current = current[:MAX_STRING_LENGTH] + "... [SKRÁTENÉ]"
+                    
                     with self.lock:
-                        if current_text in self.clipboard_history:
-                            self.clipboard_history.remove(current_text)
-                        self.clipboard_history.append(current_text)
-                        
-                        # Hardening: Limit počtu položiek (FIFO)
-                        if len(self.clipboard_history) > MAX_HISTORY_ITEMS:
-                            self.clipboard_history.pop(0)
-                        
-                    # Signalizovať hlavnému vláknu o potrebe prekreslenia, ak je popup otvorený
-                    if self.popup_open and self.rebuild_items_callback:
-                        # Použijeme root.after_idle pre plynulejšie prekreslenie
-                        if self.root and self.root.winfo_exists():
-                            self.root.after_idle(self.rebuild_items_callback)
-            except Exception as e:
-                print(f"Error polling clipboard: {e}")
-
-            # Auto-reset kontrola
-            elapsed = time.time() - self.last_reset_time
-            if elapsed >= AUTO_RESET_MINUTES * 60:
-                self.reset_history()
-
+                        if current in self.history: self.history.remove(current)
+                        self.history.append(current)
+                        if len(self.history) > MAX_HISTORY_ITEMS: self.history.pop(0)
+                        self.last_item = current
+                
+                # Auto-reset
+                if time.time() - self.last_reset > AUTO_RESET_MINUTES * 60:
+                    self.history.clear()
+                    self.last_reset = time.time()
+                    
+            except: pass
             time.sleep(POLL_INTERVAL)
 
-    # ─── Reset histórie ──────────────────────────────────────────────────
-    def reset_history(self):
-        """Vymaže celú históriu schránky."""
-        with self.lock:
-            self.clipboard_history.clear()
-            self.last_reset_time = time.time()
-
-    # ─── Popup okno na výber ─────────────────────────────────────────────
-    def show_selection_popup(self):
-        """Zobrazí Tkinter popup okno so zoznamom skopírovaných textov."""
-        if self.popup_open:
-            return
-
-        with self.lock:
-            items = list(self.clipboard_history)
-
-        if not items:
-            self._show_empty_notification()
+    def show_popup(self):
+        if self.popup_open: return
+        if not self.history:
+            self._notify_empty()
             return
 
         self.popup_open = True
-
-        root = ctk.CTk()
-        self.root = root
-        root.title("Kopirovačka – Dashboard 2026")
-        root.attributes("-topmost", True)
+        lazy_load_ui()
         
-        # Centrovanie okna - FIX: Šírka nastavená na 500 aby text nerozťahoval okno
-        window_width = 500
-        window_height = min(300 + len(items) * 90, 800)
-        screen_w = root.winfo_screenwidth()
-        screen_h = root.winfo_screenheight()
-        x = (screen_w - window_width) // 2
-        y = (screen_h - window_height) // 2
-        root.geometry(f"{window_width}x{window_height}+{x}+{y}")
-        root.minsize(450, 400)
-        root.resizable(True, True)
-
-        # ── Nadpis ──
-        header_frame = ctk.CTkFrame(root, fg_color="transparent")
-        header_frame.pack(fill="x", padx=40, pady=(30, 10))
-
-        title_label = ctk.CTkLabel(
-            header_frame,
-            text="Kopirovačka",
-            font=("Segoe UI Variable Display", 32, "bold"),
-            text_color="#1a202c",
-        )
-        title_label.pack(anchor="w")
-
-        subtitle_label = ctk.CTkLabel(
-            header_frame,
-            text=f"Celkom {len(items)} skopírovaných položiek • Verzia 2.0",
-            font=("Segoe UI", 13),
-            text_color="#718096",
-        )
-        subtitle_label.pack(anchor="w")
-
-        # ── Toolbar ──
-        toolbar_frame = ctk.CTkFrame(root, fg_color="white", corner_radius=20, border_width=2, border_color="#edf2f7")
-        toolbar_frame.pack(fill="x", padx=40, pady=15)
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Dashboard")
+        popup.attributes("-topmost", True)
         
-        # Sekcia Zvuk
-        sound_group = ctk.CTkFrame(toolbar_frame, fg_color="transparent")
-        sound_group.pack(side="left", padx=15, pady=10)
+        # Ikona
+        ico_path = resource_path("app_icon.ico")
+        if os.path.exists(ico_path): popup.iconbitmap(ico_path)
 
-        sound_var = ctk.StringVar()
-        for k, v in self.sounds.items():
-            if v == self.selected_sound:
-                sound_var.set(k)
-                break
-        if not sound_var.get():
-            sound_var.set(list(self.sounds.keys())[0])
-                
-        def on_sound_change(*args):
-            new_selection = sound_var.get()
-            self.selected_sound = self.sounds.get(new_selection, "")
-            # Automatické prehratie po výbere
-            threading.Thread(target=self._play_sound, daemon=True).start()
-            
-        sound_var.trace_add("write", on_sound_change)
-        
-        sound_menu = ctk.CTkOptionMenu(
-            sound_group, 
-            variable=sound_var, 
-            values=list(self.sounds.keys()),
-            font=("Segoe UI", 12, "bold"),
-            fg_color="white",
-            text_color="#2d3748",
-            button_color="#f7fafc",
-            button_hover_color="#edf2f7",
-            dropdown_font=("Segoe UI", 12),
-            dropdown_fg_color="white",
-            dropdown_text_color="#2d3748",
-            dropdown_hover_color="#f7fafc",
-            width=120 # Fixná šírka
-        )
-        sound_menu.pack(side="left")
+        # Rozmery a centrovanie
+        w, h = 500, 600
+        sw, sh = popup.winfo_screenwidth(), popup.winfo_screenheight()
+        popup.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
 
-        # Sekcia Akcie (vždy viditeľný Reset)
-        actions_group = ctk.CTkFrame(toolbar_frame, fg_color="transparent")
-        actions_group.pack(side="right", padx=15, pady=10)
+        # --- Obsah ---
+        title = ctk.CTkLabel(popup, text="Kopirovačka", font=("Segoe UI Variable Display", 30, "bold"))
+        title.pack(pady=(20, 10))
 
-        def clear_all_popup():
-            if messagebox.askyesno("Vymazať históriu", "Naozaj chcete vymazať celú históriu?"):
-                self.reset_history()
-                rebuild_items()
+        scroll = ctk.CTkScrollableFrame(popup, fg_color="transparent")
+        scroll.pack(fill="both", expand=True, padx=20, pady=10)
 
-        clear_btn = ctk.CTkButton(
-            actions_group,
-            text="🗑️ Reset",
-            font=("Segoe UI", 12, "bold"),
-            fg_color="#fff5f5",
-            text_color="#e53e3e",
-            hover_color="#fed7d7",
-            corner_radius=8,
-            border_width=2,
-            border_color="#fecaca",
-            width=80,
-            command=clear_all_popup
-        )
-        clear_btn.pack(side="right", padx=5)
-
-        # Sekcia Kompatibilita (RDP)
-        comp_group = ctk.CTkFrame(toolbar_frame, fg_color="transparent")
-        comp_group.pack(side="right", padx=15, pady=10)
-
-        def toggle_comp():
-            self.compatibility_mode = not self.compatibility_mode
-            if self.compatibility_mode:
-                comp_check.configure(text="⚡ Komp. mód zapnutý", text_color="#d69e2e")
-            else:
-                comp_check.configure(text="⚡ RDP Kompatibilita", text_color="#718096")
-
-        comp_check = ctk.CTkCheckBox(
-            comp_group,
-            text="⚡ RDP Kompatibilita",
-            font=("Segoe UI", 11, "bold"),
-            text_color="#718096",
-            border_color="#cbd5e0",
-            hover_color="#edf2f7",
-            checkmark_color="#3182ce",
-            width=20,
-            height=20,
-            command=toggle_comp
-        )
-        if self.compatibility_mode:
-            comp_check.select()
-            comp_check.configure(text="⚡ Komp. mód zapnutý", text_color="#d69e2e")
-        comp_check.pack(side="right")
-
-        root.bind("<Escape>", lambda e: root.destroy())
-        root.update_idletasks() # Prvotný layout výpočet
-
-        # ── Scrollovateľný zoznam ──
-        scrollable_frame = ctk.CTkScrollableFrame(root, fg_color="transparent")
-        scrollable_frame.pack(fill="both", expand=True, padx=20, pady=0)
-
-        # ── Footer Section ──
-        footer_frame = ctk.CTkFrame(root, fg_color="transparent", height=40)
-        footer_frame.pack(fill="x", padx=40, pady=(0, 15))
-
-        pin_btn = ctk.CTkButton(
-            footer_frame, 
-            text="🔓 Odopnuté" if not self.pinned else "📌 Pripnuté",
-            font=("Segoe UI", 11, "bold"),
-            fg_color="#f0fff4" if self.pinned else "white",
-            text_color="#166534" if self.pinned else "#64748b",
-            hover_color="#dcfce7" if self.pinned else "#f1f5f9",
-            corner_radius=10,
-            border_width=2,
-            border_color="#68d391" if self.pinned else "#e2e8f0",
-            width=110,
-            height=30
-        )
-        
-        def toggle_pin_ui():
-            self.pinned = not self.pinned
-            if self.pinned:
-                pin_btn.configure(text="📌 Pripnuté", fg_color="#f0fff4", text_color="#166534", border_color="#68d391")
-            else:
-                pin_btn.configure(text="🔓 Odopnuté", fg_color="white", text_color="#64748b", border_color="#e2e8f0")
-            # Netreba nutne rebuild_items, ak sa mení len vzhľad tlačidla
-            
-        pin_btn.configure(command=toggle_pin_ui)
-        pin_btn.pack(side="left")
-
-        def select_item(text):
-            threading.Thread(target=self._play_sound, daemon=True).start()
-            self.last_clipboard = text # Okamžitý update pre highlight
+        def select(text):
             pyperclip.copy(text)
-            with self.lock:
-                if text in self.clipboard_history:
-                    self.clipboard_history.remove(text)
-                self.clipboard_history.append(text)
-            
+            self.last_item = text
+            self._play_sound()
             if not self.pinned:
-                root.destroy()
+                popup.destroy()
                 self.popup_open = False
-                self.root = None
-                self.rebuild_items_callback = None
-                
-                # Dynamic delay based on compatibility mode
-                delay = 0.4 if self.compatibility_mode else 0.1
-                time.sleep(delay)
+                time.sleep(0.4 if self.compatibility_mode else 0.1)
                 keyboard.send("ctrl+v")
             else:
-                rebuild_items()
+                self.update_list(scroll, popup)
 
-        def delete_item(text):
-            with self.lock:
-                if text in self.clipboard_history:
-                    self.clipboard_history.remove(text)
-            rebuild_items()
+        self.update_list(scroll, popup, select)
+        
+        # Footer
+        footer = ctk.CTkFrame(popup, fg_color="transparent")
+        footer.pack(fill="x", padx=20, pady=15)
+        
+        pin_btn = ctk.CTkButton(footer, text="📌 Pripnuté" if self.pinned else "🔓 Odopnuté", width=100, 
+                                 command=lambda: self._toggle_pin(pin_btn))
+        pin_btn.pack(side="left")
+        
+        ctk.CTkButton(footer, text="🗑️ Vymazať všetko", fg_color="#fff5f5", text_color="#e53e3e", width=120,
+                      command=lambda: [self.history.clear(), self.update_list(scroll, popup, select)]).pack(side="right")
 
-        def close_popup(event=None):
-            root.destroy()
-            self.popup_open = False
-            self.root = None
-            self.rebuild_items_callback = None
+        popup.protocol("WM_DELETE_WINDOW", lambda: [setattr(self, "popup_open", False), popup.destroy()])
+        popup.bind("<Escape>", lambda e: [setattr(self, "popup_open", False), popup.destroy()])
 
-        root.bind("<Escape>", close_popup)
-        root.protocol("WM_DELETE_WINDOW", close_popup)
-
-        self._last_rebuild_state = (None, 0) # (posledný prvok, počet prvkov)
-        self._rebuild_scheduled = False
-
-        def rebuild_items():
-            if self._rebuild_scheduled:
-                return
-            self._rebuild_scheduled = True
+    def update_list(self, scroll, popup, select_callback):
+        for w in scroll.winfo_children(): w.destroy()
+        with self.lock:
+            items = list(reversed(self.history))
             
-            def _perform_rebuild():
-                self._rebuild_scheduled = False
-                try:
-                    if not root or not root.winfo_exists():
-                        return
-                except Exception:
-                    return
-
-                with self.lock:
-                    current_items = list(self.clipboard_history)
-                    last_item = current_items[-1] if current_items else None
-                    state = (last_item, len(current_items), self.last_clipboard)
-
-                # Optimalizácia výkonu: prekresľujeme len ak sa reálne niečo zmenilo
-                if state == self._last_rebuild_state:
-                    return
-                self._last_rebuild_state = state
-
-                # Vyčistiť existujúce widgety
-                for widget in scrollable_frame.winfo_children():
-                    widget.destroy()
-
-                if not current_items:
-                    empty_label = ctk.CTkLabel(
-                        scrollable_frame,
-                        text="Zatiaľ tu nie sú žiadne dáta na zobrazenie.",
-                        font=("Segoe UI", 14),
-                        text_color="#a0aec0",
-                    )
-                    empty_label.pack(pady=40)
-                    return
-
-                for i, item in enumerate(reversed(current_items)):
-                    idx = len(current_items) - i
-                    is_active = (item == self.last_clipboard)
-                    
-                    # Colors
-                    if is_active:
-                        card_bg = "#f0fff4"
-                        border = "#68d391"
-                        text_col = "#14532d"
-                        status_col = "#166534"
-                        status_text = "AKTÍVNE"
-                    else:
-                        card_bg = "white"
-                        border = "#f1f5f9"
-                        text_col = "#334155"
-                        status_col = "#94a3b8"
-                        status_text = f"#{idx}"
-
-                    # Karta s dynamickou výškou (odstránené height=36 a pack_propagate)
-                    card = ctk.CTkFrame(
-                        scrollable_frame, 
-                        fg_color=card_bg, 
-                        corner_radius=15,
-                        border_width=2,
-                        border_color=border
-                    )
-                    card.pack(fill="x", padx=15, pady=4) # 4px medzera medzi kartami
-
-                    # Layout inside card - Dynamic Row
-                    inner = ctk.CTkFrame(card, fg_color="transparent")
-                    inner.pack(fill="both", expand=True, padx=8, pady=5) # Viac miesta vnútri karty
-
-                    # Status label (zarovnaný hore)
-                    ctk.CTkLabel(inner, text=status_text, font=("Segoe UI", 10, "bold"), text_color=status_col).pack(side="left", anchor="n", pady=(5, 0))
-
-                    preview = item.strip()
-                    # Rozumný limit pre preview, ak by bol text extrémne dlhý (viac ako 1000 znakov)
-                    if len(preview) > 1000:
-                        preview = preview[:1000] + "…"
-
-                    # Viacriadkový text cez CTkLabel (podporuje justify="left")
-                    text_label = ctk.CTkLabel(
-                        inner,
-                        text=preview,
-                        font=("Segoe UI", 13),
-                        text_color=text_col,
-                        anchor="w",
-                        justify="left",
-                        cursor="hand2",
-                        wraplength=380 # FIX: Pevný wraplength aby nerobit feedback loop so sirkou okna
-                    )
-                    text_label.pack(side="left", fill="x", expand=True, padx=(8, 0))
-                    
-                    # Klikateľnosť celej karty a textu
-                    def on_click(e, t=item):
-                        select_item(t)
-                        
-                    text_label.bind("<Button-1>", on_click)
-                    card.bind("<Button-1>", on_click)
-                    inner.bind("<Button-1>", on_click)
-
-                    # Delete btn (mini - zarovnaný hore)
-                    del_btn = ctk.CTkButton(
-                        inner,
-                        text="✕",
-                        font=("Segoe UI", 12),
-                        fg_color="transparent",
-                        text_color="#ef4444",
-                        hover_color="#fef2f2",
-                        width=24,
-                        height=24,
-                        corner_radius=8,
-                        command=lambda t=item: delete_item(t)
-                    )
-                    del_btn.pack(side="right", anchor="n", padx=(5, 0), pady=(2, 0))
-
-                for i in range(min(9, len(current_items))):
-                    item_text = list(reversed(current_items))[i]
-                    root.bind(str(i + 1), lambda e, t=item_text: select_item(t))
+        for item in items:
+            is_active = (item == self.last_item)
+            frame = ctk.CTkFrame(scroll, fg_color="#f0fff4" if is_active else "white", corner_radius=12, border_width=1)
+            frame.pack(fill="x", pady=4, padx=5)
             
-            root.after_idle(_perform_rebuild)
+            lbl = ctk.CTkLabel(frame, text=item[:300].strip(), font=("Segoe UI", 13), justify="left", anchor="w", wraplength=380, cursor="hand2")
+            lbl.pack(side="left", fill="x", expand=True, padx=12, pady=10)
+            lbl.bind("<Button-1>", lambda e, t=item: select_callback(t))
+            frame.bind("<Button-1>", lambda e, t=item: select_callback(t))
 
+    def _toggle_pin(self, btn):
+        self.pinned = not self.pinned
+        btn.configure(text="📌 Pripnuté" if self.pinned else "🔓 Odopnuté")
 
-        self.rebuild_items_callback = rebuild_items
-        rebuild_items()
-
-        root.focus_force()
-        root.mainloop()
-
-    def _show_empty_notification(self):
-        """Zobrazí krátku notifikáciu, že zoznam je prázdny."""
-        ctk.set_appearance_mode("light")
-        root = ctk.CTk()
-        root.title("Kopirovačka")
-        root.attributes("-topmost", True)
-        root.geometry("320x100+{}+{}".format(
-            (root.winfo_screenwidth() - 320) // 2,
-            (root.winfo_screenheight() - 100) // 2,
-        ))
-        root.resizable(False, False)
-
-        frame = ctk.CTkFrame(root, fg_color="transparent")
-        frame.pack(expand=True, fill="both")
-
-        ctk.CTkLabel(
-            frame,
-            text="📋 Zoznam je prázdny",
-            font=("Segoe UI", 16, "bold"),
-            text_color="#2d3748"
-        ).pack(pady=(15, 5))
-
-        ctk.CTkLabel(
-            frame,
-            text="Najprv niečo skopíruj (Ctrl+C)",
-            font=("Segoe UI", 12),
-            text_color="#718096"
-        ).pack()
-
-        root.after(2000, root.destroy)
-        root.mainloop()
+    def _notify_empty(self):
+        messagebox.showinfo("Kopirovačka", "História je prázdna. Skúste niečo skopírovať!")
 
     def _play_sound(self):
-        """Zahraje vybraný zvuk štekajúceho psa/mačky."""
-        if not self.selected_sound:
-            return  # Používateľ vybral "Bez zvuku"
-            
+        if not self.selected_sound: return
         try:
             import winsound
-            sound_path = resource_path(self.selected_sound)
-            
-            # Ak zvuk ešte nemáme, stiahneme ho
-            if not os.path.exists(sound_path):
-                urls = {
-                    "dog1.wav": "https://bigsoundbank.com/static/sounds/0111.wav",
-                    "dog2.wav": "https://bigsoundbank.com/static/sounds/0112.wav",
-                    "cat.wav": "https://bigsoundbank.com/static/sounds/0151.wav"
-                }
-                if self.selected_sound in urls:
-                    url = urls[self.selected_sound]
-                    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-                    try:
-                        with urllib.request.urlopen(req) as response:
-                            data = response.read()
-                            with open(sound_path, 'wb') as out_file:
-                                out_file.write(data)
-                    except Exception:
-                        return # Ak nevieme stiahnuť, ticho
-            
-            if os.path.exists(sound_path):
-                # Prehráme zvuk bez blokovania
-                # SND_FILENAME = 0x00020000, SND_ASYNC = 0x0001
-                try:
-                    winsound.PlaySound(sound_path, 0x00020000 | 0x0001)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+            p = resource_path(self.selected_sound)
+            if os.path.exists(p):
+                winsound.PlaySound(p, 0x00020000 | 0x0001)
+        except: pass
 
-    # ─── System tray ikona ───────────────────────────────────────────────
-    def create_tray_icon(self) -> pystray.Icon:
-        """Vytvorí system tray ikonu s menu."""
-        image = self._create_icon_image()
-
-        def on_reset(icon, item):
-            self.reset_history()
-
-        def on_show(icon, item):
-            self.on_hotkey()
-
-        def on_quit(icon, item):
-            self.running = False
-            icon.stop()
-
-        def get_count(item):
-            with self.lock:
-                return f"Položiek: {len(self.clipboard_history)}"
-
+    def _create_tray_icon(self):
+        img = self._create_icon_img()
         menu = pystray.Menu(
-            pystray.MenuItem(get_count, None, enabled=False),
+            pystray.MenuItem("📋 Dashboard", lambda: self.root.after(0, self.show_popup)),
+            pystray.MenuItem("🗑️ Vymazať históriu", lambda: self.history.clear()),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("📋 Zobraziť zoznam", on_show),
-            pystray.MenuItem("🗑️ Vymazať zoznam", on_reset),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("❌ Ukončiť", on_quit),
+            pystray.MenuItem("❌ Ukončiť", lambda: self.root.destroy())
         )
+        return pystray.Icon("kopirovacka", img, "Kopírovačka", menu)
 
-        icon = pystray.Icon(
-            "kopirovacka",
-            image,
-            "Kopirovačka – Multi-Clipboard",
-            menu,
-        )
-        return icon
-
-    @staticmethod
-    def _create_icon_image() -> Image.Image:
-        """Vygeneruje jednoduchú ikonu pre system tray."""
+    def _create_icon_img(self):
         size = 64
         img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(img)
-
-        # Pozadie – zaoblený štvorec
-        draw.rounded_rectangle(
-            [4, 4, size - 4, size - 4],
-            radius=12,
-            fill="#3182ce",
-        )
-
-        # Písmeno "K" v strede
+        d = ImageDraw.Draw(img)
+        d.rounded_rectangle([4, 4, 60, 60], radius=12, fill="#3182ce")
         try:
-            fnt = ImageFont.truetype(resource_path("segoeui.ttf"), 36)
-        except Exception:
-            try:
-                # Fallback pre Windows font, ak by v bundle nebol (hoci segoeui by mal byť v systéme)
-                fnt = ImageFont.truetype("segoeui.ttf", 36)
-            except Exception:
-                fnt = ImageFont.load_default()
-
-        draw.text(
-            (size // 2, size // 2),
-            "K",
-            fill="white",
-            font=fnt,
-            anchor="mm",
-        )
-
+            f = ImageFont.truetype(resource_path("segoeui.ttf"), 36)
+        except:
+            f = ImageFont.load_default()
+        d.text((32, 32), "K", fill="white", font=f, anchor="mm")
         return img
 
-    # ─── Hlavný beh ──────────────────────────────────────────────────────
-    def run(self):
-        """Spustí clipboard manažéra."""
-        # Globálne nastavenia pre CustomTkinter
-        ctk.set_appearance_mode("light")
-        ctk.set_default_color_theme("blue")
-        
-        print("=" * 50)
-        print("  📋 Kopirovačka – Multi-Clipboard Manager")
-        print("=" * 50)
-        print(f"  Ctrl+;        → Zobraziť zoznam na výber")
-        print(f"  Auto-reset    → Každých {AUTO_RESET_MINUTES} minút")
-        print(f"  System tray   → Pravý klik pre menu")
-        print("=" * 50)
-        print("  Program beží... (minimalizuj toto okno)")
-        print()
-
-        # Spustiť monitoring schránky
-        poll_thread = threading.Thread(target=self.poll_clipboard, daemon=True)
-        poll_thread.start()
-
-        # Registrovať globálnu klávesovú skratku
-        keyboard.add_hotkey(HOTKEY, self.on_hotkey, suppress=True)
-
-        # Spustiť system tray ikonu v SAMOSTATNOM vlákne
-        self.icon = self.create_tray_icon()
-        threading.Thread(target=self.icon.run, daemon=True).start()
-
-        # Hlavná slučka v HLAVNOM vlákne (pre thread-safety Tkinteru)
-        try:
-            while self.running:
-                if self.show_popup_signal:
-                    self.show_popup_signal = False
-                    try:
-                        self.show_selection_popup()
-                    except Exception as e:
-                        print(f"Popup error: {e}")
-                time.sleep(0.1)
-        except KeyboardInterrupt:
-            pass
-        finally:
-            self.running = False
-            if self.icon:
-                self.icon.stop()
-            keyboard.unhook_all()
-            print("\n  Kopirovačka ukončená. Dovidenia! 👋")
-
-    def on_hotkey(self):
-        """Spracuje stlačenie klávesovej skratky - signalizuje hlavnému vláknu."""
-        if not self.popup_open:
-            self.show_popup_signal = True
-
+# ─── Entry Point ─────────────────────────────────────────────────────────────
+def hide_console():
+    if sys.platform == "win32":
+        ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
 
 if __name__ == "__main__":
-    # Singleton check pomocou Windows Mutexu
-    import ctypes
-    from tkinter import messagebox
-
-    mutex_name = "Kopirovacka_Singleton_Mutex_2026"
-    mutex = ctypes.windll.kernel32.CreateMutexW(None, False, mutex_name)
-    last_error = ctypes.windll.kernel32.GetLastError()
-
-    if last_error == 183:  # ERROR_ALREADY_EXISTS
-        root = tk.Tk()
-        root.withdraw()
-        messagebox.showwarning(
-            "Kopírovačka už beží",
-            "Program už je spustený na pozadí.\nPozrite si ikonku v lište (pri hodinách) !!!!!!!"
-        )
-        root.destroy()
-        os._exit(0)
-
-    hide_console()
-
-    # Inštalačná logika
-    if not handle_installation():
-        os._exit(0)
-
     try:
-        manager = ClipboardManager()
-        manager.run()
+        # Singleton check
+        mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "Kopirovacka_Premium_2026")
+        if ctypes.windll.kernel32.GetLastError() == 183:
+            root = tk.Tk()
+            root.withdraw()
+            messagebox.showwarning("Kopírovačka", "Aplikácia už beží v systéme.")
+            sys.exit(0)
+
+        hide_console()
+
+        # Inštalácia
+        current_exe = sys.executable
+        target_path = os.path.join(os.environ["APPDATA"], "Kopirovacka", "Kopirovacka.exe")
+        
+        if current_exe.lower().endswith(".exe") and os.path.abspath(current_exe).lower() != os.path.abspath(target_path).lower():
+            installer = KopirovackaInstaller()
+            installer.run()
+            sys.exit(0)
+
+        # Hlavná aplikácia
+        root = tk.Tk()
+        root.withdraw() # Skryté hlavné okno
+        
+        manager = ClipboardManager(root)
+        root.mainloop()
+
     except Exception as e:
-        import tkinter as tk
-        from tkinter import messagebox
+        import traceback
+        err = f"Kritická chyba: {e}\n{traceback.format_exc()}"
         root = tk.Tk()
         root.withdraw()
-        messagebox.showerror(
-            "Kopírovačka – Kritická chyba",
-            f"Aplikácia musela byť ukončená z dôvodu chyby:\n\n{e}\n\nSystém zostáva v bezpečí."
-        )
-        root.destroy()
-    finally:
-        import keyboard
-        keyboard.unhook_all()
-        # Zabezpečiť, že nezostanú visieť žiadne procesy
-        import os
-        os._exit(0)
-
+        messagebox.showerror("Kopírovačka Error", err)
+        os._exit(1)
