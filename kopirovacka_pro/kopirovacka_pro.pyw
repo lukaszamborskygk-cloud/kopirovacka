@@ -214,12 +214,20 @@ class KopirovackaPro:
 
     def _monitor(self):
         while self.active:
-            if self.suppress_monitor:
-                time.sleep(0.1)
-                continue
-                
             try:
-                current = pyperclip.paste()
+                if self.suppress_monitor:
+                    time.sleep(0.1)
+                    continue
+                
+                # Zabezpečený prístup k schránke
+                current = ""
+                try:
+                    current = pyperclip.paste()
+                except Exception:
+                    # Ak Windows zamkne schránku, skúsime znova neskôr
+                    time.sleep(0.5)
+                    continue
+
                 if current and current != self.last_item:
                     text = current[:50000] if len(current) > 50000 else current
                     with self.lock:
@@ -230,8 +238,11 @@ class KopirovackaPro:
                         if len(self.history) > MAX_HISTORY:
                             self.history.pop(0)
                         self.last_item = text
-            except: pass
-            time.sleep(0.5)
+            except Exception as e:
+                # Totálna poistka proti pádu vlákna
+                print(f"Monitor Warning: {e}")
+            
+            time.sleep(0.6) # Optimálny interval pre stabilitu
 
     def toggle_dashboard(self):
         if self.popup_visible: return
@@ -263,25 +274,24 @@ class KopirovackaPro:
         scroll.pack(fill="both", expand=True, padx=25, pady=10)
 
         def on_select(t):
-            self.suppress_monitor = True # Dočasne vypneme sledovanie
-            pyperclip.copy(t)
-            self.last_item = t
-            
-            # Presunieme na vrch v histórii (aby bol najnovší)
-            with self.lock:
-                if t in self.history:
-                    self.history.remove(t)
-                self.history.append(t)
+            self.suppress_monitor = True 
+            try:
+                pyperclip.copy(t)
+                self.last_item = t
+                with self.lock:
+                    if t in self.history: self.history.remove(t)
+                    self.history.append(t)
 
-            if not self.pinned:
-                pop.destroy()
-                self.popup_visible = False
-                time.sleep(0.12)
-                keyboard.send("ctrl+v")
-                self.root.after(500, lambda: setattr(self, "suppress_monitor", False))
-            else:
-                self._render_items(scroll, on_select)
-                self.root.after(500, lambda: setattr(self, "suppress_monitor", False))
+                if not self.pinned:
+                    pop.destroy()
+                    self.popup_visible = False
+                    time.sleep(0.15)
+                    keyboard.send("ctrl+v")
+                else:
+                    self._render_items(scroll, on_select)
+            finally:
+                # Poistka: Vždy vrátime sledovanie späť po krátkom čase
+                self.root.after(600, lambda: setattr(self, "suppress_monitor", False))
 
         self._render_items(scroll, on_select)
 
