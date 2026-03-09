@@ -1,36 +1,29 @@
-# 📋 Kopírovačka – Multi-Clipboard Manager (2026 Edition)
+# 💎 Kopírovačka Pro – Elite Multi-Clipboard Manager (2026)
 
-Moderný manažér schránky, ktorý si pamätá všetko, čo skopírujete. Beží ticho na pozadí a vyvoláte ho jednoduchou skratkou. Teraz v podobe jednoduchej aplikácie pre Windows.
+Profesionálny manažér schránky navrhnutý pre maximálnu produktivitu, nulovú latenciu a moderný vizuálny zážitok.
 
-## ✨ Kľúčové funkcie
-- **História schránky**: Pamätá si posledných 50 položiek.
-- **Rýchla aktivácia**: Skratka **`Ctrl + ;`** okamžite otvorí Dashboard.
-- **Jednoduchá inštalácia**: Aplikácia sa sama nainštaluje a vytvorí ikonku na ploche.
-- **Zvuková spätná väzba**: Vyberte si medzi štekotom psa alebo mňaukaním mačky pri výbere textu.
-- **Pripnutie (Pin)**: Dashboard môže zostať stále na vrchu, kým ho sami nezavriete.
-- **Tichý chod**: Po spustení nezaberá miesto na lište úloh (beží v tray ikonke pri hodinách).
+## ✨ Kľúčové funkcie (Elite Edition)
 
-## 🚀 Inštalácia (Najjednoduchší spôsob)
-Už nie je potrebné inštalovať Python ani nič iné. Stačí vám len jeden súbor:
+- **Zero-Lag Architecture**: Beží na revolučnom *event-driven* modely. V nečinnosti spotrebúva **0.0% CPU**.
+- **Instant Access**: Dashboard otvoríte okamžite klávesovou skratkou **Ctrl + ;**.
+- **Dashboard Pinning**: Pripnite si okno (📌), aby zostalo navrchu, kým ho sami nezavriete.
+- **Inteligentná história**: Najnovšie skopírované texty sú **vždy na prvej pozícii**.
+- **Moderný Dizajn**: Čisté rozhranie inspirované glassmorphismom a zaoblenými hranami.
+- **Pro Logo**: Vlastná, moderná ikona, ktorá vyzerá skvele v celom systéme Windows.
 
-1. Stiahnite si súbor **`Instalacka.exe`** (priečinok `dist`).
-2. Spustite ho. 
-3. Aplikácia sa opýta: *"Chcete nainštalovať Kopírovačku do počítača a vytvoriť ikonku na ploche?"*
-4. Potvrďte **Áno**.
-   - Aplikácia sa automaticky skopíruje do vášho počítača (priečinok AppData).
-   - Na ploche sa vytvorí ikonka **Kopírovačka**.
-5. Hotovo! Aplikácia sa hneď spustí a môžete ju začať používať.
+## 🚀 Jednoduchá Inštalácia
 
-## 🔄 Ako používať
-- **Kopírovanie**: Používajte `Ctrl + C` ako obvykle. Kopírovačka všetko zachytí.
-- **Rozšírené vkladanie**: Stlačte **`Ctrl + ;`**. Otvorí sa Dashboard so všetkými skopírovanými textami. Kliknite na text, ktorý chcete vložiť, a program ho automaticky prilepí tam, kde máte kurzor.
-- **System Tray (Lišta pri hodinách)**: Vpravo dole nájdete modrú ikonku s písmenom **"K"**. Pravým klikom môžete:
-  - **Vymazať zoznam** (históriu).
-  - **Zobraziť zoznam** (ak zabudnete skratku).
-  - **Ukončiť** aplikáciu.
+1. Stiahnite si tento projekt ako ZIP (alebo cez git).
+2. Otvorte priečinok `kopirovacka_pro/dist/`.
+3. Spustite **Instalacka.exe**.
+4. Sledujte bleskovú inštaláciu a hotovo! Ikona sa okamžite objaví na vašej ploche.
 
-## 🌐 Vzdialená plocha (RDP)
-Ak pracujete cez vzdialenú plochu a vkladanie nefunguje správne, v Dashboarde (`Ctrl + ;`) zaškrtnite políčko **⚡ RDP Kompatibilita**. Program pridá drobné oneskorenie, aby sa schránka stihla synchronizovať.
+## 🛠️ Ovládanie
+
+- **Ctrl + C**: Bežné kopírovanie (automaticky sa pridá do histórie).
+- **Ctrl + ;**: Otvorenie Dashboardu pre výber textu.
+- **Enter / Klik**: Výber textu a automatické vloženie (Paste).
+- **Esc**: Okamžité zavretie Dashboardu.
 
 ---
-*Vyrobené s ❤️ pre efektívnejšiu prácu v roku 2026.*
+*Tento projekt je optimalizovaný pre Windows 10/11 a nevyžaduje inštaláciu Pythonu.*
