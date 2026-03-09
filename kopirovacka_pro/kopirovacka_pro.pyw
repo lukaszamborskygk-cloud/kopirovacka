@@ -54,6 +54,26 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
+# ─── Splash Screen (Okamžitá spätná väzba) ──────────────────────────────────
+class SplashScreen:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.overrideredirect(True)
+        self.root.attributes("-topmost", True)
+        self.root.configure(bg="#1a365d")
+        
+        w, h = 400, 150
+        sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
+        self.root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
+        
+        tk.Label(self.root, text="Kopírovačka Pro", font=("Segoe UI", 24, "bold"), fg="white", bg="#1a365d").pack(pady=(30, 0))
+        tk.Label(self.root, text="Spúšťam Elite verziu...", font=("Segoe UI", 12), fg="#a0aec0", bg="#1a365d").pack()
+        
+        self.root.update()
+
+    def close(self):
+        self.root.destroy()
+
 # ─── Pro Installer UI ────────────────────────────────────────────────────────
 class ProInstaller:
     def __init__(self):
@@ -175,7 +195,8 @@ class KopirovackaPro:
         self.lock = threading.Lock()
         self.active = True
         self.popup_visible = False
-        self.pinned = False  # Stav pripnutia Dashboardu
+        self.pinned = False
+        self.suppress_monitor = False # Flag na zabránenie duplikácie pri výbere
         
         lazy_load_core()
         
@@ -193,6 +214,10 @@ class KopirovackaPro:
 
     def _monitor(self):
         while self.active:
+            if self.suppress_monitor:
+                time.sleep(0.1)
+                continue
+                
             try:
                 current = pyperclip.paste()
                 if current and current != self.last_item:
@@ -238,16 +263,25 @@ class KopirovackaPro:
         scroll.pack(fill="both", expand=True, padx=25, pady=10)
 
         def on_select(t):
+            self.suppress_monitor = True # Dočasne vypneme sledovanie
             pyperclip.copy(t)
             self.last_item = t
+            
+            # Presunieme na vrch v histórii (aby bol najnovší)
+            with self.lock:
+                if t in self.history:
+                    self.history.remove(t)
+                self.history.append(t)
+
             if not self.pinned:
                 pop.destroy()
                 self.popup_visible = False
                 time.sleep(0.12)
                 keyboard.send("ctrl+v")
+                self.root.after(500, lambda: setattr(self, "suppress_monitor", False))
             else:
-                # Ak je pripnuté, len aktualizujeme zoznam (aby sa vybraný dal na vrch)
                 self._render_items(scroll, on_select)
+                self.root.after(500, lambda: setattr(self, "suppress_monitor", False))
 
         self._render_items(scroll, on_select)
 
@@ -344,10 +378,17 @@ if __name__ == "__main__":
             ProInstaller().run()
             sys.exit(0)
 
-        # 4. App Start
+        # 3. App Start
+        splash = SplashScreen()
+        
         root = tk.Tk()
         root.withdraw()
+        
         app = KopirovackaPro(root)
+        
+        # Zatvoriť splash screen po inicializácii (keď nabehne tray a monitoring)
+        root.after(1000, lambda: splash.close())
+        
         root.mainloop()
 
     except Exception as e:
