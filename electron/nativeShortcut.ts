@@ -29,9 +29,9 @@ const ACCELERATOR_KEY_MAP: Record<string, number> = {
 };
 
 // Modifier key scan codes in uiohook
-const CTRL_KEYS = new Set([UiohookKey.Ctrl, UiohookKey.CtrlRight]);
-const ALT_KEYS = new Set([UiohookKey.Alt, UiohookKey.AltRight]);
-const SHIFT_KEYS = new Set([UiohookKey.Shift, UiohookKey.ShiftRight]);
+const CTRL_KEYS = new Set<number>([UiohookKey.Ctrl, UiohookKey.CtrlRight]);
+const ALT_KEYS = new Set<number>([UiohookKey.Alt, UiohookKey.AltRight]);
+const SHIFT_KEYS = new Set<number>([UiohookKey.Shift, UiohookKey.ShiftRight]);
 
 interface ParsedShortcut {
   keycode: number;
