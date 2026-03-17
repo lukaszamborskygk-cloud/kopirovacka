@@ -10,7 +10,7 @@
     "build": "tsc && vite build && tsc -p tsconfig.electron.json",
     "preview": "vite preview",
     "electron:dev": "vite",
-    "electron:build": "npm run build && electron-builder",
+    "electron:build": "npm run build && set CSC_IDENTITY_AUTO_DISCOVERY=false && electron-builder",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
