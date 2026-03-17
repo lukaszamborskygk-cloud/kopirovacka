@@ -193,7 +193,7 @@ export default function SettingsPanel() {
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         transition={{ duration: 0.15 }}
-        className={`${cardBg} w-[400px] max-h-[480px] overflow-y-auto rounded-card border`}
+        className={`${cardBg} w-[420px] max-h-[580px] overflow-y-auto rounded-card border`}
       >
         {/* Header */}
         <div className={`flex items-center justify-between px-4 py-3 border-b ${borderColor}`}>
@@ -321,6 +321,30 @@ export default function SettingsPanel() {
               step={100}
               className={`w-full rounded-btn px-3 py-2 text-sm transition-all duration-200 outline-none ${inputBg}`}
             />
+          </div>
+
+          {/* Window size presets */}
+          <div>
+            <label className={`text-xs ${textMuted} block mb-2`}>Veľkosť okna</label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                { label: '3:4', w: 480, h: 640, desc: '480×640' },
+                { label: '9:16', w: 400, h: 711, desc: '400×711' },
+                { label: 'Veľké', w: 780, h: 620, desc: '780×620' },
+              ].map((preset) => (
+                <button
+                  key={preset.label}
+                  onClick={() => window.electronAPI.setWindowSize(preset.w, preset.h)}
+                  className={`flex flex-col items-center justify-center gap-0.5 py-2 px-1 rounded-btn border transition-all duration-150 hover:border-accent/50 hover:bg-accent/5 ${
+                    isLight ? 'border-black/10 bg-black/[0.02]' : 'border-white/10 bg-white/[0.02]'
+                  }`}
+                  title={preset.desc}
+                >
+                  <span className={`text-[11px] font-semibold ${textMain}`}>{preset.label}</span>
+                  <span className={`text-[9px] ${textMuted}`}>{preset.desc}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Auto-start */}

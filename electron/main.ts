@@ -22,18 +22,23 @@ import {
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let clipboardWatcher: ClipboardWatcher | null = null;
+let isWindowPinned = false;
 
 const isDev = !app.isPackaged;
-const WINDOW_WIDTH = 650;
-const WINDOW_HEIGHT = 500;
+const DEFAULT_WIDTH = 650;
+const DEFAULT_HEIGHT = 500;
+let WINDOW_WIDTH = DEFAULT_WIDTH;
+let WINDOW_HEIGHT = DEFAULT_HEIGHT;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: WINDOW_WIDTH,
     height: WINDOW_HEIGHT,
+    minWidth: 380,
+    minHeight: 350,
     show: false,
     frame: false,
-    resizable: false,
+    resizable: true,
     skipTaskbar: true,
     alwaysOnTop: true,
     backgroundColor: '#0a0a0f',
@@ -75,11 +80,18 @@ function createWindow() {
   });
 
   mainWindow.on('blur', () => {
-    // In dev mode, don't auto-hide (DevTools cause blur)
-    if (isDev) return;
+    if (isWindowPinned) return; // pinned — stay open
     if (mainWindow && mainWindow.isVisible()) {
       mainWindow.hide();
     }
+  });
+
+  // Save window size when user resizes manually
+  mainWindow.on('resize', () => {
+    if (!mainWindow) return;
+    const [w, h] = mainWindow.getSize();
+    WINDOW_WIDTH = w;
+    WINDOW_HEIGHT = h;
   });
 
   mainWindow.on('closed', () => {
@@ -124,22 +136,94 @@ function toggleWindow() {
 }
 
 function createTrayDataUrl(size: number): string {
-  // Build a raw RGBA bitmap, then wrap it in a minimal BMP data-URL
-  // We'll use Electron's built-in ability to parse raw bitmaps
   const pixels = Buffer.alloc(size * size * 4);
-  // Fill with amber #f59e0b
-  for (let i = 0; i < size * size; i++) {
-    pixels[i * 4] = 0xf5;     // R
-    pixels[i * 4 + 1] = 0x9e; // G
-    pixels[i * 4 + 2] = 0x0b; // B
-    pixels[i * 4 + 3] = 0xff; // A
+  pixels.fill(0);
+
+  // Alpha-blend a pixel
+  function blend(x: number, y: number, r: number, g: number, b: number, a: number = 255) {
+    if (x < 0 || x >= size || y < 0 || y >= size) return;
+    const i = (y * size + x) * 4;
+    const alpha = a / 255;
+    pixels[i]   = Math.round(r * alpha + pixels[i]   * (1 - alpha));
+    pixels[i+1] = Math.round(g * alpha + pixels[i+1] * (1 - alpha));
+    pixels[i+2] = Math.round(b * alpha + pixels[i+2] * (1 - alpha));
+    pixels[i+3] = Math.min(255, pixels[i+3] + Math.round(a * (1 - pixels[i+3] / 255)));
   }
+
+  // SVG content bbox 280×280 starting at (200,180) — same as generate-icon.js
+  const drawSize = size * 0.9;
+  const margin   = size * 0.05;
+  const sc = drawSize / 280;
+  const ox = margin - 200 * sc;
+  const oy = margin - 180 * sc;
+  const sv = (v: number) => Math.round(v * sc);
+  const sx = (x: number) => Math.round(x * sc + ox);
+  const sy = (y: number) => Math.round(y * sc + oy);
+
+  function rrect(x: number, y: number, w: number, h: number, r: number, cr: number, cg: number, cb: number, ca: number = 255) {
+    for (let py = y; py < y + h; py++) {
+      for (let px = x; px < x + w; px++) {
+        const lx = px - x, ly = py - y;
+        let ok = true;
+        if      (lx < r && ly < r)       ok = (lx-r)**2+(ly-r)**2 <= r*r;
+        else if (lx >= w-r && ly < r)    ok = (lx-(w-r))**2+(ly-r)**2 <= r*r;
+        else if (lx < r && ly >= h-r)    ok = (lx-r)**2+(ly-(h-r))**2 <= r*r;
+        else if (lx >= w-r && ly >= h-r) ok = (lx-(w-r))**2+(ly-(h-r))**2 <= r*r;
+        if (ok) blend(px, py, cr, cg, cb, ca);
+      }
+    }
+  }
+
+  function rrectBorder(x: number, y: number, w: number, h: number, r: number, sw: number, cr: number, cg: number, cb: number, ca: number = 255) {
+    for (let py = y; py < y + h; py++) {
+      for (let px = x; px < x + w; px++) {
+        const lx = px - x, ly = py - y;
+        let inO = true;
+        if      (lx < r && ly < r)       inO = (lx-r)**2+(ly-r)**2 <= r*r;
+        else if (lx >= w-r && ly < r)    inO = (lx-(w-r))**2+(ly-r)**2 <= r*r;
+        else if (lx < r && ly >= h-r)    inO = (lx-r)**2+(ly-(h-r))**2 <= r*r;
+        else if (lx >= w-r && ly >= h-r) inO = (lx-(w-r))**2+(ly-(h-r))**2 <= r*r;
+        if (!inO) continue;
+        const ix = lx-sw, iy = ly-sw, iw = w-sw*2, ih = h-sw*2, ir = Math.max(0, r-sw);
+        let inI = false;
+        if (iw > 0 && ih > 0 && ix >= 0 && iy >= 0 && ix < iw && iy < ih) {
+          inI = true;
+          if      (ix < ir && iy < ir)         inI = (ix-ir)**2+(iy-ir)**2 <= ir*ir;
+          else if (ix >= iw-ir && iy < ir)     inI = (ix-(iw-ir))**2+(iy-ir)**2 <= ir*ir;
+          else if (ix < ir && iy >= ih-ir)     inI = (ix-ir)**2+(iy-(ih-ir))**2 <= ir*ir;
+          else if (ix >= iw-ir && iy >= ih-ir) inI = (ix-(iw-ir))**2+(iy-(ih-ir))**2 <= ir*ir;
+        }
+        if (!inI) blend(px, py, cr, cg, cb, ca);
+      }
+    }
+  }
+
+  function hline(x1: number, y: number, x2: number, sw: number, cr: number, cg: number, cb: number, ca: number = 255) {
+    const half = sw / 2;
+    for (let py = Math.floor(y - half); py <= Math.ceil(y + half); py++)
+      for (let px = x1; px <= x2; px++)
+        blend(px, py, cr, cg, cb, ca);
+  }
+
+  // Back square — amber
+  rrect(sx(200), sy(180), sv(230), sv(230), Math.max(1, sv(36)), 0xf5, 0x9e, 0x0b);
+  // Front square — dark fill
+  rrect(sx(250), sy(230), sv(230), sv(230), Math.max(1, sv(36)), 22, 22, 31);
+  // Front square — amber border
+  rrectBorder(sx(250), sy(230), sv(230), sv(230), Math.max(1, sv(36)), Math.max(1, sv(8)), 0xf5, 0x9e, 0x0b);
+  // Lines (only if big enough to be visible)
+  if (sv(10) >= 1) {
+    hline(sx(292), sy(300), sx(442), Math.max(1, sv(10)), 255, 255, 255, 255);
+    hline(sx(292), sy(332), sx(415), Math.max(1, sv(8)),  255, 255, 255, 128);
+    hline(sx(292), sy(362), sx(390), Math.max(1, sv(7)),  255, 255, 255, 64);
+  }
+
   const img = nativeImage.createFromBitmap(pixels, { width: size, height: size });
   return img.toDataURL();
 }
 
 function createTray() {
-  const size = 16;
+  const size = 32;
   const dataUrl = createTrayDataUrl(size);
   const trayIcon = nativeImage.createFromDataURL(dataUrl);
 
@@ -310,6 +394,26 @@ function setupIPC() {
   ipcMain.on('window-close', () => mainWindow?.hide());
   ipcMain.on('window-hide', () => mainWindow?.hide());
 
+  // Pin window — keep open when clicking elsewhere
+  ipcMain.handle('toggle-pin-window', () => {
+    isWindowPinned = !isWindowPinned;
+    db?.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('windowPinned', JSON.stringify(isWindowPinned));
+    return isWindowPinned;
+  });
+
+  ipcMain.handle('get-pin-state', () => isWindowPinned);
+
+  // Set window size preset
+  ipcMain.handle('set-window-size', (_event, width: number, height: number) => {
+    if (!mainWindow) return;
+    WINDOW_WIDTH = width;
+    WINDOW_HEIGHT = height;
+    mainWindow.setSize(width, height);
+    db?.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('windowWidth', JSON.stringify(width));
+    db?.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('windowHeight', JSON.stringify(height));
+    return true;
+  });
+
   // Get all settings
   ipcMain.handle('get-all-settings', () => {
     const rows = db.prepare('SELECT * FROM settings').all() as any[];
@@ -436,6 +540,10 @@ app.whenReady().then(() => {
   const savedShortcut = getSetting('shortcut', 'CommandOrControl+;');
   const savedAutoStart = getSetting('autoStart', false);
   const savedTheme = getSetting('theme', 'dark-amber');
+  isWindowPinned = getSetting('windowPinned', false);
+  WINDOW_WIDTH = getSetting('windowWidth', DEFAULT_WIDTH);
+  WINDOW_HEIGHT = getSetting('windowHeight', DEFAULT_HEIGHT);
+  if (mainWindow) mainWindow.setSize(WINDOW_WIDTH, WINDOW_HEIGHT);
 
   console.log(`[MAIN] Loaded settings: shortcut=${savedShortcut}, pollInterval=${savedPollInterval}, autoStart=${savedAutoStart}, theme=${savedTheme}`);
 

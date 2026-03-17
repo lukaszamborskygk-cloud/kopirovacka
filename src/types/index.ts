@@ -61,6 +61,9 @@ declare global {
       minimizeWindow: () => void;
       closeWindow: () => void;
       hideWindow: () => void;
+      togglePinWindow: () => Promise<boolean>;
+      getPinState: () => Promise<boolean>;
+      setWindowSize: (width: number, height: number) => Promise<boolean>;
       onClipsUpdated: (callback: () => void) => () => void;
       onWindowShown: (callback: () => void) => () => void;
       onThemeChanged: (callback: (theme: string) => void) => () => void;

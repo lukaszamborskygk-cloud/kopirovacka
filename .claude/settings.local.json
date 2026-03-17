@@ -75,7 +75,14 @@
       "Bash(powershell -Command \"Get-Process node | Stop-Process -Force; Start-Sleep 1; Write-Host done\")",
       "Bash(powershell -Command \"Get-Process electron,node -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 2; Write-Host killed\")",
       "Bash(find /c/Users/lukas/Desktop/claude-kopirovacka -maxdepth 2 -type f \\\\\\(-name *.yml -o -name *.yaml -o -name *.config.js \\\\\\))",
-      "Bash(find /c/Users/lukas/Desktop/claude-kopirovacka -maxdepth 3 -type f \\\\\\(-name *.ico -o -name *.png -o -name *.jpg -o -name *.svg \\\\\\))"
+      "Bash(find /c/Users/lukas/Desktop/claude-kopirovacka -maxdepth 3 -type f \\\\\\(-name *.ico -o -name *.png -o -name *.jpg -o -name *.svg \\\\\\))",
+      "Bash(gh release:*)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(powershell -Command \"\\(Get-Content website\\\\index.html\\) -replace ''Kopirovacka%20Setup%201\\\\.0\\\\.0\\\\.exe'', ''Kopirovacka.Setup.1.0.0.exe'' | Set-Content website\\\\index.html\")",
+      "Bash(node scripts/generate-icon.js)",
+      "Bash(powershell -Command \"\\(Get-Content website\\\\index.html\\) -replace ''releases/download/v1\\\\.0\\\\.3/Kopirovacka\\\\.Setup\\\\.1\\\\.0\\\\.0\\\\.exe'', ''releases/download/v1.0.4/Kopirovacka.Setup.1.0.0.exe'' | Set-Content website\\\\index.html\")",
+      "Bash(ls -la \"C:\\\\Users\\\\lukas\\\\Desktop\\\\claude-kopirovacka\\\\src\\\\components\"\" 2>/dev/null || echo \"Directory listing \")",
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }

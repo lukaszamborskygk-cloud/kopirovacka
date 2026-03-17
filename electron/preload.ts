@@ -65,6 +65,11 @@ const electronAPI = {
   closeWindow: () => ipcRenderer.send('window-close'),
   hideWindow: () => ipcRenderer.send('window-hide'),
 
+  // Pin & resize
+  togglePinWindow: () => ipcRenderer.invoke('toggle-pin-window'),
+  getPinState: () => ipcRenderer.invoke('get-pin-state'),
+  setWindowSize: (width: number, height: number) => ipcRenderer.invoke('set-window-size', width, height),
+
   // Listeners
   onClipsUpdated: (callback: () => void) => {
     ipcRenderer.on('clips-updated', callback);

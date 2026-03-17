@@ -1,8 +1,19 @@
-import { Search, Settings, Minus, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Settings, Minus, X, Pin, PinOff } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
 export default function TitleBar() {
   const { searchQuery, setSearchQuery, setSettingsOpen } = useStore();
+  const [isPinned, setIsPinned] = useState(false);
+
+  useEffect(() => {
+    window.electronAPI.getPinState().then((state: boolean) => setIsPinned(state));
+  }, []);
+
+  const handleTogglePin = async () => {
+    const newState = await window.electronAPI.togglePinWindow();
+    setIsPinned(newState);
+  };
 
   return (
     <div className="drag-region flex items-center gap-2 px-3 py-2 border-b border-black/10 dark:border-surface-border bg-white/80 dark:bg-surface/80">
@@ -21,6 +32,13 @@ export default function TitleBar() {
 
       {/* Actions */}
       <div className="no-drag flex items-center gap-0.5">
+        <button
+          onClick={handleTogglePin}
+          className={`btn-ghost ${isPinned ? '!text-accent !bg-accent/10' : ''}`}
+          title={isPinned ? 'Odopnúť okno' : 'Pripnúť okno'}
+        >
+          {isPinned ? <Pin className="w-3.5 h-3.5" /> : <PinOff className="w-3.5 h-3.5" />}
+        </button>
         <button
           onClick={() => setSettingsOpen(true)}
           className="btn-ghost"
