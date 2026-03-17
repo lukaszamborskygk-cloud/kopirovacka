@@ -26,7 +26,7 @@ jobs:
         run: npm ci
 
       - name: Build & Package
-        run: npm run build && npx electron-builder --win --publish never
+        run: npm run generate-icon && npm run build && npx electron-builder --win --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 

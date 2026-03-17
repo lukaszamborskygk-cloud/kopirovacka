@@ -10,7 +10,8 @@
     "build": "tsc && vite build && tsc -p tsconfig.electron.json",
     "preview": "vite preview",
     "electron:dev": "vite",
-    "electron:build": "npm run build && electron-builder",
+    "generate-icon": "node scripts/generate-icon.js",
+    "electron:build": "npm run generate-icon && npm run build && electron-builder",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {

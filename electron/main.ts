@@ -23,7 +23,7 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let clipboardWatcher: ClipboardWatcher | null = null;
 
-const isDev = process.env.NODE_ENV !== 'production' || !app.isPackaged;
+const isDev = !app.isPackaged;
 const WINDOW_WIDTH = 650;
 const WINDOW_HEIGHT = 500;
 
