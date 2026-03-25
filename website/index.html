@@ -230,6 +230,56 @@
       border: 2px solid rgba(255,255,255,0.1);
     }
 
+    /* ── INSTALL ──────────────────────────────────────── */
+    .install-bg { background: var(--bg2); }
+    .install-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px; margin-top: 48px;
+    }
+    @media (max-width: 700px) { .install-grid { grid-template-columns: 1fr; } }
+    .install-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+    }
+    .install-card-title {
+      font-size: 1rem; font-weight: 700; margin-bottom: 20px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .install-card-title .badge {
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+      background: rgba(245,158,11,0.15); color: var(--accent);
+      border: 1px solid rgba(245,158,11,0.25);
+      padding: 3px 8px; border-radius: 100px;
+    }
+    .install-steps { display: flex; flex-direction: column; gap: 14px; }
+    .install-step {
+      display: flex; gap: 14px; align-items: flex-start;
+    }
+    .install-step-num {
+      width: 26px; height: 26px; flex-shrink: 0;
+      border-radius: 50%;
+      background: rgba(245,158,11,0.12);
+      border: 1px solid rgba(245,158,11,0.25);
+      color: var(--accent); font-weight: 700; font-size: 0.75rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .install-step-body { padding-top: 3px; }
+    .install-step-body strong { display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 3px; }
+    .install-step-body span { font-size: 0.8rem; color: var(--text-muted); }
+    .install-note {
+      margin-top: 16px;
+      background: rgba(245,158,11,0.07);
+      border: 1px solid rgba(245,158,11,0.2);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.78rem; color: var(--text-muted);
+      line-height: 1.6;
+    }
+    .install-note strong { color: var(--accent); }
+
     /* ── CTA ──────────────────────────────────────────── */
     .cta {
       text-align: center; padding: 100px 24px;
@@ -263,6 +313,7 @@
       <a href="#features">Funkcie</a>
       <a href="#how">Ako to funguje</a>
       <a href="#settings">Nastavenia</a>
+      <a href="#install">Inštalácia</a>
       <a href="#download">Stiahnuť</a>
     </div>
   </div>
@@ -459,6 +510,98 @@
           <p>Prepínač ktorý pridá Kopirovačku do automatického spustenia po prihlásení.</p>
         </div>
       </div>
+    </div>
+  </div>
+</section>
+
+<!-- INSTALL / UPDATE -->
+<section id="install" class="install-bg">
+  <div class="container">
+    <div class="section-label">Inštalácia</div>
+    <div class="section-title">Ako nainštalovať<br/>alebo aktualizovať</div>
+    <p class="section-desc">Prvá inštalácia aj aktualizácia zo staršej verzie — jednoduché kroky.</p>
+
+    <div class="install-grid">
+
+      <!-- Prvá inštalácia -->
+      <div class="install-card">
+        <div class="install-card-title">
+          Prvá inštalácia
+          <span class="badge">Nový používateľ</span>
+        </div>
+        <div class="install-steps">
+          <div class="install-step">
+            <div class="install-step-num">1</div>
+            <div class="install-step-body">
+              <strong>Stiahni inštalátor</strong>
+              <span>Klikni na tlačidlo „Stiahnuť pre Windows" nižšie.</span>
+            </div>
+          </div>
+          <div class="install-step">
+            <div class="install-step-num">2</div>
+            <div class="install-step-body">
+              <strong>Spusti .exe súbor</strong>
+              <span>Otvor stiahnutý súbor <kbd>Kopirovacka.Setup.1.0.6.exe</kbd>. Windows môže zobraziť varovanie — klikni „Spustiť aj tak".</span>
+            </div>
+          </div>
+          <div class="install-step">
+            <div class="install-step-num">3</div>
+            <div class="install-step-body">
+              <strong>Prejdi inštaláciou</strong>
+              <span>Klikni Ďalej → Inštalovať → Dokončiť.</span>
+            </div>
+          </div>
+          <div class="install-step">
+            <div class="install-step-num">4</div>
+            <div class="install-step-body">
+              <strong>Hotovo</strong>
+              <span>Kopirovačka sa spustí automaticky. Vyskúšaj skratku <kbd>Ctrl + ;</kbd></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Aktualizácia -->
+      <div class="install-card">
+        <div class="install-card-title">
+          Aktualizácia
+          <span class="badge">Máš starú verziu</span>
+        </div>
+        <div class="install-steps">
+          <div class="install-step">
+            <div class="install-step-num">1</div>
+            <div class="install-step-body">
+              <strong>Odinštaluj starú verziu</strong>
+              <span>Stlač <kbd>Win + R</kbd>, napíš <kbd>appwiz.cpl</kbd> a stlač Enter. Nájdi <strong>Kopirovacka</strong> → pravý klik → <strong>Odinštalovať</strong>.</span>
+            </div>
+          </div>
+          <div class="install-step">
+            <div class="install-step-num">2</div>
+            <div class="install-step-body">
+              <strong>Počkaj na dokončenie</strong>
+              <span>Odinštalovanie trvá niekoľko sekúnd. História kopírovania zostáva zachovaná.</span>
+            </div>
+          </div>
+          <div class="install-step">
+            <div class="install-step-num">3</div>
+            <div class="install-step-body">
+              <strong>Stiahni a nainštaluj novú verziu</strong>
+              <span>Klikni na tlačidlo „Stiahnuť pre Windows" nižšie a postupuj rovnako ako pri prvej inštalácii.</span>
+            </div>
+          </div>
+          <div class="install-step">
+            <div class="install-step-num">4</div>
+            <div class="install-step-body">
+              <strong>Hotovo</strong>
+              <span>Všetky nastavenia a skratky zostanú rovnaké.</span>
+            </div>
+          </div>
+        </div>
+        <div class="install-note">
+          <strong>Novinka v tejto verzii:</strong> Okno Kopirovačky sa teraz vždy zobrazí v popredí — aj keď máš otvorených viacero aplikácií.
+        </div>
+      </div>
+
     </div>
   </div>
 </section>
