@@ -50,6 +50,9 @@ function createWindow() {
     },
   });
 
+  // Use 'screen-saver' level so window stays above ALL other windows on Windows
+  mainWindow.setAlwaysOnTop(true, 'screen-saver');
+
   // Log all renderer console messages to stdout
   mainWindow.webContents.on('console-message', (_e, level, message, line, sourceId) => {
     const levelStr = ['LOG', 'WARN', 'ERROR'][level] || 'INFO';
@@ -120,7 +123,10 @@ function showWindowAtCursor() {
   if (y < workArea.y) y = workArea.y;
 
   mainWindow.setPosition(x, y);
+  // Re-assert always-on-top before showing so the window appears above all others
+  mainWindow.setAlwaysOnTop(true, 'screen-saver');
   mainWindow.show();
+  mainWindow.moveTop();
   mainWindow.focus();
   mainWindow.webContents.send('window-shown');
 }
